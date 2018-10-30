@@ -55,8 +55,11 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Info\Attribute.cs" />
-    <Compile Include="Info\TaskInfo.cs" />
-    <Compile Include="TaskProcessors\TreeWriterTaskProcessor.cs" />
+    <Compile Include="Info\FileTaskInfo.cs" />
+    <Compile Include="TaskCoordinator\ITaskEvents.cs" />
+    <Compile Include="TaskCoordinator\TaskCoordinator.cs" />
+    <Compile Include="TaskProcessors\FileInfoTaskProcessor.cs" />
+    <Compile Include="TaskProcessors\TreeWriterInfoTaskProcessor.cs" />
     <Compile Include="TaskProcessors\FileWriterTaskProcessor.cs" />
     <Compile Include="TaskProcessors\ITaskProcessor.cs" />
     <Compile Include="TaskProducers\FileInfoTaskProducer.cs" />

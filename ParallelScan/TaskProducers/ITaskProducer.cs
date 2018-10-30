@@ -1,15 +1,13 @@
 ﻿using System;
+using ParallelScan.TaskCoordinator;
 
 namespace ParallelScan.TaskProducers
 {
-    interface ITaskProducer<TArg>
+    interface ITaskProducer<TTaskInfo> : ITaskEvents
     {
-        event EventHandler<TArg> Produced;
-        event EventHandler<Exception> Failed;
-        event EventHandler Canceled;
-        event EventHandler Completed;
+        event Action<TTaskInfo> Produced;
 
-        void OnCanceled(object sender, EventArgs args);
-        void OnFailed(object sender, Exception args);
+        void Start();
+        void Cancel();
     }
 }

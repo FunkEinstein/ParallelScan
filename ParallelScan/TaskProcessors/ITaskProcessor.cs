@@ -1,20 +1,14 @@
-﻿using ParallelScan.TaskProducers;
-using System;
+﻿using System;
+using ParallelScan.TaskCoordinator;
 
 namespace ParallelScan.TaskProcessors
 {
-    interface ITaskProcessor<TArg>
+    interface ITaskProcessor<TTaskInfo> : ITaskEvents
     {
-        event EventHandler<TArg> Processed;
-        event EventHandler<Exception> Failed;
-        event EventHandler Canceled;
-        event EventHandler Completed;
+        event EventHandler<TTaskInfo> Processed;
 
-        void Subscribe(ITaskProducer<TArg> producer);
-
-        void OnReceiveTask(object sender, TArg info);
-        void OnCanceled(object sender, EventArgs args);
-        void OnFailed(object sender, Exception args);
-        void OnProviderComplete(object sender, EventArgs args);
+        void QueueTask(TTaskInfo info);
+        void Finish();
+        void Cancel();
     }
 }

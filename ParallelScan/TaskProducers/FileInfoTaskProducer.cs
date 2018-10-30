@@ -15,7 +15,7 @@ using My = ParallelScan.Info;
 
 namespace ParallelScan.TaskProducers
 {
-    class FileInfoTaskProducer : ITaskProducer<TaskInfo>
+    class FileInfoTaskProducer : ITaskProducer<FileTaskInfo>
     {
         private Task _task;
         private readonly CancellationTokenSource _cts;
@@ -24,11 +24,9 @@ namespace ParallelScan.TaskProducers
 
         private readonly string _baseDirectoryPath;
 
-        public event EventHandler<TaskInfo> Produced = delegate { };
-        public event EventHandler<Exception> Failed = delegate { };
-        public event EventHandler Canceled = delegate { };
-        public event EventHandler Completed = delegate { };
-
+        public event Action<FileTaskInfo> Produced = delegate { };
+        public event Action<Exception> Failed = delegate { };
+        public event Action Completed = delegate { };
 
         public FileInfoTaskProducer(string baseDirectoryPath)
         {
@@ -39,24 +37,18 @@ namespace ParallelScan.TaskProducers
             _baseDirectoryPath = baseDirectoryPath;
         }
 
-
-        public void OnCanceled(object sender, EventArgs args)
-        {
-            _cts.Cancel();
-        }
-
-        public void OnFailed(object sender, Exception args)
-        {
-            _cts.Cancel();
-        }
-
-
         public void Start()
         {
             if (_task == null)
                 _task = Task.Factory.StartNew(Produce, _cts.Token);
         }
 
+        public void Cancel()
+        {
+            _cts.Cancel();
+        }
+
+        #region Produce
 
         private void Produce()
         {
@@ -64,24 +56,20 @@ namespace ParallelScan.TaskProducers
             {
                 GetStructure(_baseDirectoryPath);
 
-                Completed(this, null);
+                Completed();
             }
-            catch (OperationCanceledException)
-            {
-                Canceled(this, null);
-            }
+            catch (OperationCanceledException) { } // Swallow this
             catch (Exception ex)
             {
-                Failed(this, ex);
+                Failed(ex);
             }
         }
-
 
         public void GetStructure(string path)
         {
             var info = new DirectoryInfo(path);
 
-            Produced(this, GetDirectoriesInfo(info));
+            Produced(GetDirectoriesInfo(info));
 
             GetStructure(info);
         }
@@ -99,7 +87,7 @@ namespace ParallelScan.TaskProducers
             }
             catch (UnauthorizedAccessException)
             {
-                var taskInfo = new TaskInfo
+                var taskInfo = new FileTaskInfo
                 {
                     Attributes = new List<My.Attribute>(),
                     IsDirectory = true,
@@ -107,14 +95,14 @@ namespace ParallelScan.TaskProducers
                     TaskType = TaskType.Update
                 };
 
-                Produced(this, taskInfo);
+                Produced(taskInfo);
 
                 return size;
             }
 
             for (int i = 0; i < dirs.Count(); i++)
             {
-                Produced(this, GetDirectoriesInfo(dirs[i]));
+                Produced(GetDirectoriesInfo(dirs[i]));
 
                 size += GetStructure(dirs[i]);
             }
@@ -122,28 +110,28 @@ namespace ParallelScan.TaskProducers
             var files = info.GetFiles();
             for (int i = 0; i < files.Count(); i++)
             {
-                Produced(this, GetFileInfo(files[i]));
+                Produced(GetFileInfo(files[i]));
 
                 size += files[i].Length;
             }
 
-            Produced(this, new TaskInfo
-                {
-                    Attributes = new List<My.Attribute> { new My.Attribute("Size", size.ToString(CultureInfo.InvariantCulture)) },
-                    Name = info.Name,
-                    IsDirectory = true,
-                    TaskType = TaskType.Update
-                });
+            var updateSizeInfo = new FileTaskInfo
+            {
+                Attributes = new List<My.Attribute> { new My.Attribute("Size", size.ToString(CultureInfo.InvariantCulture)) },
+                Name = info.Name,
+                IsDirectory = true,
+                TaskType = TaskType.Update
+            };
+            Produced(updateSizeInfo);
 
             return size;
         }
 
-
-        private TaskInfo GetDirectoriesInfo(DirectoryInfo dir)
+        private FileTaskInfo GetDirectoriesInfo(DirectoryInfo dir)
         {
             var attributes = GetDirectoryAttributes(dir).ToList();
 
-            return new TaskInfo
+            return new FileTaskInfo
             {
                 Attributes = attributes,
                 Name = dir.Name,
@@ -152,11 +140,11 @@ namespace ParallelScan.TaskProducers
             };
         }
 
-        private TaskInfo GetFileInfo(FileInfo file)
+        private FileTaskInfo GetFileInfo(FileInfo file)
         {
             var attributes = GetFilesAttributes(file).ToList();
 
-            return new TaskInfo
+            return new FileTaskInfo
             {
                 Attributes = attributes,
                 Name = file.Name,
@@ -164,7 +152,6 @@ namespace ParallelScan.TaskProducers
                 TaskType = TaskType.Add
             };
         }
-
 
         private IEnumerable<My.Attribute> GetDirectoryAttributes(DirectoryInfo dir)
         {
@@ -339,5 +326,7 @@ namespace ParallelScan.TaskProducers
 
             return attributes;
         }
+
+        #endregion
     }
 }

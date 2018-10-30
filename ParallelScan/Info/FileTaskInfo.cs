@@ -8,7 +8,7 @@ namespace ParallelScan.Info
         Update
     }
 
-    class TaskInfo
+    class FileTaskInfo
     {
         public List<Attribute> Attributes { get; set; }
         public string Name { get; set; }

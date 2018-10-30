@@ -10,6 +10,9 @@ using ParallelScan.TaskProducers;
 using ParallelScan.TaskProcessors;
 using System.Diagnostics;
 using ParallelScan.Info;
+using ParallelScan.TaskCoordinator;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 
 namespace ParallelScan
 {
@@ -21,7 +24,7 @@ namespace ParallelScan
         private readonly Stopwatch _watch;
         private readonly AutoResetEvent _event;
 
-        private int _getCounter;
+        private int _fileCounter;
         private int _setCounter;
         private int _writeCounter;
 
@@ -30,14 +33,13 @@ namespace ParallelScan
         private bool _isWriteComplete;
         private bool _isMessageShown;
 
-        private EventHandler _canceled = delegate { };
-
+        private TaskCoordinator<FileTaskInfo> _coordinator;
 
         public MainWindow()
         {
             InitializeComponent();
 
-            _getCounter = 0;
+            _fileCounter = 0;
             _setCounter = 0;
             _writeCounter = 0;
 
@@ -50,6 +52,7 @@ namespace ParallelScan
             _watch = new Stopwatch();
         }
 
+        #region GUI handlers
 
         private void OnStartClick(object sender, RoutedEventArgs e)
         {
@@ -87,25 +90,21 @@ namespace ParallelScan
                 dataProvider.Document = document;
 
                 var producer = new FileInfoTaskProducer(slectedPath);
-                var treeWriter = new TreeWriterTaskProcessor(Dispatcher, dataProvider.Document, producer);
-                var writer = new FileWriterTaskProcessor(savePath, producer);
+                var treeWriter = new TreeWriterInfoTaskProcessor(Dispatcher, dataProvider.Document);
+                var fileWriter = new FileWriterTaskProcessor(savePath);
 
-                producer.Produced += OnGet;
-                treeWriter.Processed += OnSet;
-                writer.Processed += OnWrite;
+                _coordinator = new TaskCoordinator<FileTaskInfo>(producer, treeWriter, fileWriter);
 
-                _canceled += producer.OnCanceled;
+                // producer.Produced += OnGet;
+                // treeWriter.Processed += OnSet;
+                // fileWriter.Processed += OnWrite;
 
-                producer.Failed += OnError;
-                treeWriter.Failed += OnError;
-                writer.Failed += OnError;
-
-                producer.Completed += OnGetComplete;
-                treeWriter.Completed += OnSetComplete;
-                writer.Completed += OnWriteComplete;
+                _coordinator.Failed += OnError;
+                _coordinator.Completed += OnComplited;
+                _coordinator.Produced += OnFileProcessed;
 
                 _watch.Start();
-                producer.Start();
+                _coordinator.Start();
 
                 StartMenuItem.IsEnabled = false;
                 CancelMenuItem.IsEnabled = true;
@@ -114,7 +113,7 @@ namespace ParallelScan
 
         private void OnCancelClick(object sender, RoutedEventArgs e)
         {
-            _canceled(this, null);
+            Cancel();
 
             Dispatcher.Invoke(() =>
             {
@@ -125,86 +124,52 @@ namespace ParallelScan
 
         private void OnExitClick(object sender, RoutedEventArgs e)
         {
-            _canceled(this, null);
+            Cancel();
 
-            System.Windows.Application.Current.Shutdown();
+            Application.Current.Shutdown();
         }
 
         private void OnWindowClose(object sender, EventArgs e)
         {
-            _canceled(this, null);
+            Cancel();
         }
 
+        #endregion
 
-        private void OnGet(object sender, TaskInfo info)
+        #region Event handlers
+
+        private void OnFileProcessed(FileTaskInfo info)
         {
             if (info.TaskType == TaskType.Add)
-                _getCounter++;
+                _fileCounter++;
 
-            Dispatcher.Invoke(() => GetCount.Text = _getCounter.ToString(CultureInfo.InvariantCulture));
+            Dispatcher.Invoke(() => GetCount.Text = _fileCounter.ToString(CultureInfo.InvariantCulture));
         }
 
-        private void OnSet(object sender, TaskInfo info)
+        // private void OnSet(object sender, FileTaskInfo info)
+        // {
+        //     _setCounter++;
+        //
+        //     Dispatcher.Invoke(() => SetCount.Text = _setCounter.ToString(CultureInfo.InvariantCulture));
+        // }
+        //
+        // private void OnWrite(object sender, FileTaskInfo info)
+        // {
+        //     _writeCounter++;
+        //
+        //     Dispatcher.Invoke(() => WriteCount.Text = _writeCounter.ToString(CultureInfo.InvariantCulture));
+        // }
+
+        private void OnError(Exception ex)
         {
-            _setCounter++;
+            Cancel();
 
-            Dispatcher.Invoke(() => SetCount.Text = _setCounter.ToString(CultureInfo.InvariantCulture));
-        }
-
-        private void OnWrite(object sender, TaskInfo info)
-        {
-            _writeCounter++;
-
-            Dispatcher.Invoke(() => WriteCount.Text = _writeCounter.ToString(CultureInfo.InvariantCulture));
-        }
-
-        private void OnError(object sender, Exception e)
-        {
-            _canceled(this, null);
-
-            System.Windows.MessageBox.Show(e.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
 
             Dispatcher.Invoke(Clear);
         }
 
-
-        private void OnGetComplete(object sender, EventArgs args)
-        {
-            _isGetComplete = true;
-
-            _event.WaitOne();
-
-            if (_isGetComplete && _isSetComplete && _isWriteComplete && !_isMessageShown)
-                OnComplite();
-
-            _event.Set();
-        }
-
-        private void OnSetComplete(object sender, EventArgs args)
-        {
-            _isSetComplete = true;
-
-            _event.WaitOne();
-
-            if (_isGetComplete && _isSetComplete && _isWriteComplete && !_isMessageShown)
-                OnComplite();
-
-            _event.Set();
-        }
-
-        private void OnWriteComplete(object sender, EventArgs args)
-        {
-            _isWriteComplete = true;
-
-            _event.WaitOne();
-
-            if (_isGetComplete && _isSetComplete && _isWriteComplete && !_isMessageShown)
-                OnComplite();
-
-            _event.Set();
-        }
-
-        private void OnComplite()
+        private void OnComplited()
         {
             _isMessageShown = true;
 
@@ -217,21 +182,33 @@ namespace ParallelScan
             _watch.Stop();
             var time = Math.Round(_watch.Elapsed.TotalSeconds, 1);
 
-            System.Windows.MessageBox.Show(
+            MessageBox.Show(
                 string.Format("Сканирование окончено. Затраченно {0} сек.", time.ToString(CultureInfo.InvariantCulture)),
                 "Информация",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
 
+        #endregion
+
+        #region Helpers
+
+        private void Cancel()
+        {
+            if (_coordinator == null)
+                return;
+
+            _coordinator.Cancel();
+            _coordinator = null;
+        }
 
         private void Clear()
         {
             StartMenuItem.IsEnabled = true;
             CancelMenuItem.IsEnabled = false;
 
-            _getCounter = 0;
-            GetCount.Text = _getCounter.ToString(CultureInfo.InvariantCulture);
+            _fileCounter = 0;
+            GetCount.Text = _fileCounter.ToString(CultureInfo.InvariantCulture);
             _setCounter = 0;
             SetCount.Text = _setCounter.ToString(CultureInfo.InvariantCulture);
             _writeCounter = 0;
@@ -242,5 +219,7 @@ namespace ParallelScan
             _isMessageShown = false;
             _watch.Reset();
         }
+
+        #endregion
     }
 }
