@@ -1,18 +1,11 @@
-﻿
-namespace ParallelScan.Info
+﻿namespace ParallelScan.Info
 {
-    class Attribute
+    class InfoAttribute
     {
         public string Name { get; set; }
         public string Value { get; set; }
 
-
-        public Attribute()
-        {
- 
-        }
-
-        public Attribute(string name, string value)
+        public InfoAttribute(string name, string value)
         {
             Name = name;
             Value = value;

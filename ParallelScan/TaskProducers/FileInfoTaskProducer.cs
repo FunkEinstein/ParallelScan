@@ -11,8 +11,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using My = ParallelScan.Info;
-
 namespace ParallelScan.TaskProducers
 {
     class FileInfoTaskProducer : ITaskProducer<FileTaskInfo>
@@ -89,7 +87,7 @@ namespace ParallelScan.TaskProducers
             {
                 var taskInfo = new FileTaskInfo
                 {
-                    Attributes = new List<My.Attribute>(),
+                    Attributes = new List<InfoAttribute>(),
                     IsDirectory = true,
                     Name = info.Name,
                     TaskType = TaskType.Update
@@ -117,7 +115,7 @@ namespace ParallelScan.TaskProducers
 
             var updateSizeInfo = new FileTaskInfo
             {
-                Attributes = new List<My.Attribute> { new My.Attribute("Size", size.ToString(CultureInfo.InvariantCulture)) },
+                Attributes = new List<InfoAttribute> { new InfoAttribute("Size", size.ToString(CultureInfo.InvariantCulture)) },
                 Name = info.Name,
                 IsDirectory = true,
                 TaskType = TaskType.Update
@@ -153,14 +151,14 @@ namespace ParallelScan.TaskProducers
             };
         }
 
-        private IEnumerable<My.Attribute> GetDirectoryAttributes(DirectoryInfo dir)
+        private IEnumerable<InfoAttribute> GetDirectoryAttributes(DirectoryInfo dir)
         {
-            var attributes = new List<My.Attribute>();
+            var attributes = new List<InfoAttribute>();
 
-            attributes.Add(new My.Attribute("CreationTime", dir.CreationTime.ToString(CultureInfo.InvariantCulture)));
-            attributes.Add(new My.Attribute("LastAccessTime", dir.LastAccessTime.ToString(CultureInfo.InvariantCulture)));
-            attributes.Add(new My.Attribute("LastWriteTime", dir.LastWriteTime.ToString(CultureInfo.InvariantCulture)));
-            attributes.Add(new My.Attribute("Attributes", dir.Attributes.ToString()));
+            attributes.Add(new InfoAttribute("CreationTime", dir.CreationTime.ToString(CultureInfo.InvariantCulture)));
+            attributes.Add(new InfoAttribute("LastAccessTime", dir.LastAccessTime.ToString(CultureInfo.InvariantCulture)));
+            attributes.Add(new InfoAttribute("LastWriteTime", dir.LastWriteTime.ToString(CultureInfo.InvariantCulture)));
+            attributes.Add(new InfoAttribute("Attributes", dir.Attributes.ToString()));
 
             DirectorySecurity security;
             try
@@ -180,11 +178,11 @@ namespace ParallelScan.TaskProducers
             try
             {
                 var ownerNT = ownerIdentity.Translate(typeof(NTAccount));
-                attributes.Add(new My.Attribute("Owner", ownerNT.Value));
+                attributes.Add(new InfoAttribute("Owner", ownerNT.Value));
             }
             catch (IdentityNotMappedException)
             {
-                attributes.Add(new My.Attribute("Owner", ownerIdentity.Value));
+                attributes.Add(new InfoAttribute("Owner", ownerIdentity.Value));
             }
 
             var rules = security.GetAccessRules(true, true, typeof(NTAccount));
@@ -238,19 +236,19 @@ namespace ParallelScan.TaskProducers
 
             var rights = builder.ToString();
 
-            attributes.Add(new My.Attribute("UserRights", rights));
+            attributes.Add(new InfoAttribute("UserRights", rights));
 
             return attributes;
         }
 
-        private IEnumerable<My.Attribute> GetFilesAttributes(FileInfo file)
+        private IEnumerable<InfoAttribute> GetFilesAttributes(FileInfo file)
         {
-            var attributes = new List<My.Attribute>();
+            var attributes = new List<InfoAttribute>();
 
-            attributes.Add(new My.Attribute("CreationTime", file.CreationTime.ToString(CultureInfo.InvariantCulture)));
-            attributes.Add(new My.Attribute("LastAccessTime", file.LastAccessTime.ToString(CultureInfo.InvariantCulture)));
-            attributes.Add(new My.Attribute("LastWriteTime", file.LastWriteTime.ToString(CultureInfo.InvariantCulture)));
-            attributes.Add(new My.Attribute("Attributes", file.Attributes.ToString()));
+            attributes.Add(new InfoAttribute("CreationTime", file.CreationTime.ToString(CultureInfo.InvariantCulture)));
+            attributes.Add(new InfoAttribute("LastAccessTime", file.LastAccessTime.ToString(CultureInfo.InvariantCulture)));
+            attributes.Add(new InfoAttribute("LastWriteTime", file.LastWriteTime.ToString(CultureInfo.InvariantCulture)));
+            attributes.Add(new InfoAttribute("Attributes", file.Attributes.ToString()));
 
             FileSecurity security;
             try
@@ -270,11 +268,11 @@ namespace ParallelScan.TaskProducers
             try
             {
                 var ownerNT = ownerSI.Translate(typeof(NTAccount));
-                attributes.Add(new My.Attribute("Owner", ownerNT.Value));
+                attributes.Add(new InfoAttribute("Owner", ownerNT.Value));
             }
             catch (IdentityNotMappedException)
             {
-                attributes.Add(new My.Attribute("Owner", ownerSI.Value));
+                attributes.Add(new InfoAttribute("Owner", ownerSI.Value));
             }
 
             var rules = security.GetAccessRules(true, true, typeof(NTAccount));
@@ -321,8 +319,8 @@ namespace ParallelScan.TaskProducers
 
             var rights = builder.ToString();
 
-            attributes.Add(new My.Attribute("UserRights", rights));
-            attributes.Add(new My.Attribute("Size", file.Length.ToString(CultureInfo.InvariantCulture)));
+            attributes.Add(new InfoAttribute("UserRights", rights));
+            attributes.Add(new InfoAttribute("Size", file.Length.ToString(CultureInfo.InvariantCulture)));
 
             return attributes;
         }
