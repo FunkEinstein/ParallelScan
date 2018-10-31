@@ -5,7 +5,7 @@ namespace ParallelScan.TaskProcessors
 {
     interface ITaskProcessor<TTaskInfo> : ITaskEvents
     {
-        event EventHandler<TTaskInfo> Processed;
+        event Action<TTaskInfo> Processed;
 
         void QueueTask(TTaskInfo info);
         void Finish();

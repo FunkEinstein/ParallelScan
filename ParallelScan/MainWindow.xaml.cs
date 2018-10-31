@@ -6,10 +6,7 @@ using System.Windows.Data;
 using System.Windows.Forms;
 using System.Xml;
 using System.IO;
-using ParallelScan.TaskProducers;
-using ParallelScan.TaskProcessors;
 using System.Diagnostics;
-using ParallelScan.Info;
 using ParallelScan.TaskCoordinator;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
@@ -24,29 +21,19 @@ namespace ParallelScan
         private readonly Stopwatch _watch;
         private readonly AutoResetEvent _event;
 
-        private int _fileCounter;
-        private int _setCounter;
-        private int _writeCounter;
+        private int _scannedItemCount;
+        private int _wroteToFileCount;
+        private int _wroteToXmlCount;
 
-        private bool _isGetComplete;
-        private bool _isSetComplete;
-        private bool _isWriteComplete;
-        private bool _isMessageShown;
-
-        private TaskCoordinator<FileTaskInfo> _coordinator;
+        private ScanCoordinator _coordinator;
 
         public MainWindow()
         {
             InitializeComponent();
 
-            _fileCounter = 0;
-            _setCounter = 0;
-            _writeCounter = 0;
-
-            _isGetComplete = false;
-            _isSetComplete = false;
-            _isWriteComplete = false;
-            _isMessageShown = false;
+            _scannedItemCount = 0;
+            _wroteToXmlCount = 0;
+            _wroteToFileCount = 0;
 
             _event = new AutoResetEvent(true);
             _watch = new Stopwatch();
@@ -71,8 +58,8 @@ namespace ParallelScan
                 fileToSave.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 var savePath = fileToSave.FileName;
-                var slectedPath = folderToScanDialog.SelectedPath;
-                var info = new DirectoryInfo(slectedPath);
+                var selectedPath = folderToScanDialog.SelectedPath;
+                var info = new DirectoryInfo(selectedPath);
 
                 var dataProvider = FindResource("xmlDataProvider") as XmlDataProvider;
 
@@ -89,19 +76,14 @@ namespace ParallelScan
 
                 dataProvider.Document = document;
 
-                var producer = new FileInfoTaskProducer(slectedPath);
-                var treeWriter = new TreeWriterInfoTaskProcessor(Dispatcher, dataProvider.Document);
-                var fileWriter = new FileWriterTaskProcessor(savePath);
-
-                _coordinator = new TaskCoordinator<FileTaskInfo>(producer, treeWriter, fileWriter);
-
-                // producer.Produced += OnGet;
-                // treeWriter.Processed += OnSet;
-                // fileWriter.Processed += OnWrite;
+                _coordinator = new ScanCoordinator(selectedPath, savePath, dataProvider.Document, Dispatcher);
 
                 _coordinator.Failed += OnError;
                 _coordinator.Completed += OnComplited;
-                _coordinator.Produced += OnFileProcessed;
+
+                _coordinator.ItemScanned += OnItemScanned;
+                _coordinator.ItemWroteToFile += OnItemWroteToFile;
+                _coordinator.ItemWroteToXml += OnItemWroteToXml;
 
                 _watch.Start();
                 _coordinator.Start();
@@ -138,27 +120,23 @@ namespace ParallelScan
 
         #region Event handlers
 
-        private void OnFileProcessed(FileTaskInfo info)
+        private void OnItemScanned()
         {
-            if (info.TaskType == TaskType.Add)
-                _fileCounter++;
-
-            Dispatcher.Invoke(() => GetCount.Text = _fileCounter.ToString(CultureInfo.InvariantCulture));
+            _scannedItemCount++;
+            Dispatcher.Invoke(() => GetCount.Text = _scannedItemCount.ToString(CultureInfo.InvariantCulture));
         }
 
-        // private void OnSet(object sender, FileTaskInfo info)
-        // {
-        //     _setCounter++;
-        //
-        //     Dispatcher.Invoke(() => SetCount.Text = _setCounter.ToString(CultureInfo.InvariantCulture));
-        // }
-        //
-        // private void OnWrite(object sender, FileTaskInfo info)
-        // {
-        //     _writeCounter++;
-        //
-        //     Dispatcher.Invoke(() => WriteCount.Text = _writeCounter.ToString(CultureInfo.InvariantCulture));
-        // }
+        private void OnItemWroteToFile()
+        {
+            _wroteToFileCount++;
+            Dispatcher.Invoke(() => WriteCount.Text = _wroteToFileCount.ToString(CultureInfo.InvariantCulture));
+        }
+
+        private void OnItemWroteToXml()
+        {
+            _wroteToXmlCount++;
+            Dispatcher.Invoke(() => SetCount.Text = _wroteToXmlCount.ToString(CultureInfo.InvariantCulture));
+        }
 
         private void OnError(Exception ex)
         {
@@ -171,8 +149,6 @@ namespace ParallelScan
 
         private void OnComplited()
         {
-            _isMessageShown = true;
-
             Dispatcher.Invoke(() =>
             {
                 StartMenuItem.IsEnabled = true;
@@ -207,16 +183,15 @@ namespace ParallelScan
             StartMenuItem.IsEnabled = true;
             CancelMenuItem.IsEnabled = false;
 
-            _fileCounter = 0;
-            GetCount.Text = _fileCounter.ToString(CultureInfo.InvariantCulture);
-            _setCounter = 0;
-            SetCount.Text = _setCounter.ToString(CultureInfo.InvariantCulture);
-            _writeCounter = 0;
-            WriteCount.Text = _writeCounter.ToString(CultureInfo.InvariantCulture);
+            _scannedItemCount = 0;
+            GetCount.Text = _scannedItemCount.ToString(CultureInfo.InvariantCulture);
+            _wroteToXmlCount = 0;
+            SetCount.Text = _wroteToXmlCount.ToString(CultureInfo.InvariantCulture);
+            _wroteToFileCount = 0;
+            WriteCount.Text = _wroteToFileCount.ToString(CultureInfo.InvariantCulture);
 
             _event.Set();
 
-            _isMessageShown = false;
             _watch.Reset();
         }
 

@@ -1,5 +1,4 @@
 ﻿using ParallelScan.Info;
-using ParallelScan.TaskProducers;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -20,7 +19,7 @@ namespace ParallelScan.TaskProcessors
 
         private StreamWriter _writer;
 
-        public override event EventHandler<FileTaskInfo> Processed = delegate { };
+        public override event Action<FileTaskInfo> Processed = delegate { };
 
         public FileWriterTaskProcessor(string path) 
         {
@@ -99,7 +98,7 @@ namespace ParallelScan.TaskProcessors
 
             _writer.WriteLine(builder.ToString());
 
-            Processed(this, info);
+            Processed(info);
         }
 
         private void UpdateInfo(FileTaskInfo info)

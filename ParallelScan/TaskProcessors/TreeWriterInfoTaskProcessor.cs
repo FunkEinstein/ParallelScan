@@ -16,7 +16,7 @@ namespace ParallelScan.TaskProcessors
         private readonly Dispatcher _dispatcher;
         private readonly XmlDocument _document;
 
-        public override event EventHandler<FileTaskInfo> Processed = delegate { };
+        public override event Action<FileTaskInfo> Processed = delegate { };
 
         public TreeWriterInfoTaskProcessor(Dispatcher dispatcher, XmlDocument document)
         {
@@ -84,7 +84,7 @@ namespace ParallelScan.TaskProcessors
                 _currentNode = child;
             }
 
-            Processed(this, info);
+            Processed(info);
         }
 
         private void EditElement(FileTaskInfo info)
@@ -98,7 +98,7 @@ namespace ParallelScan.TaskProcessors
                     _currentNode.Attributes.Append(attr);
                 }
 
-                Processed(this, info);
+                Processed(info);
 
                 return;
             }

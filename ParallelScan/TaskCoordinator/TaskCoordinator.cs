@@ -9,54 +9,49 @@ namespace ParallelScan.TaskCoordinator
 {
     class TaskCoordinator<TTaskInfo> : ITaskEvents
     {
-        private enum State
+        protected class ProducerStateInfo<TArg>
         {
-            Created,
-            Started,
-            Completed,
-            Failed,
-            Canceled
+            public readonly ITaskProducer<TArg> Producer;
+            public bool IsCompleted;
+
+            public ProducerStateInfo(ITaskProducer<TArg> producer)
+            {
+                Producer = producer;
+            }
         }
 
-        private class ProcessorState<TArg>
+        protected class ProcessorStateInfo<TArg>
         {
             public readonly ITaskProcessor<TArg> Processor;
             public bool IsCompleted;
 
-            public ProcessorState(ITaskProcessor<TArg> processor)
+            public ProcessorStateInfo(ITaskProcessor<TArg> processor)
             {
                 Processor = processor;
             }
         }
 
-        private bool _isProduceCompleted;
-        private readonly ITaskProducer<TTaskInfo> _producer;
+        protected readonly ProducerStateInfo<TTaskInfo> ProducerState;
+        protected readonly List<ProcessorStateInfo<TTaskInfo>> ProcessorStates;
 
-        private readonly List<ProcessorState<TTaskInfo>> _processorsStates;
-
-        private State _state;
+        protected bool IsStarted;
 
         private AutoResetEvent _event;
 
-        public event Action<TTaskInfo> Produced = delegate { };
         public event Action<Exception> Failed = delegate { };
         public event Action Completed = delegate { };
 
         public TaskCoordinator(ITaskProducer<TTaskInfo> producer, params ITaskProcessor<TTaskInfo>[] processors)
         {
-            _state = State.Created;
-
             _event = new AutoResetEvent(true);
 
-            _producer = producer;
-            _producer.Produced += i => Produced(i);
-
-            _processorsStates = new List<ProcessorState<TTaskInfo>>(processors.Length);
+            ProducerState = new ProducerStateInfo<TTaskInfo>(producer);
+            ProcessorStates = new List<ProcessorStateInfo<TTaskInfo>>(processors.Length);
 
             for (int i = 0; i < processors.Length; i++)
             {
                 var processor = processors[i];
-                _processorsStates.Add(new ProcessorState<TTaskInfo>(processor));
+                ProcessorStates.Add(new ProcessorStateInfo<TTaskInfo>(processor));
 
                 producer.Produced += processor.QueueTask;
 
@@ -70,66 +65,61 @@ namespace ParallelScan.TaskCoordinator
 
         public void Start()
         {
-            if (_state != State.Created)
+            if (IsStarted)
                 throw new InvalidOperationException("Start operation can't be performed again.");
 
-            _state = State.Started;
-
-            _producer.Start();
+            IsStarted = true;
+            ProducerState.Producer.Start();
         }
 
         public void Cancel()
         {
-            _state = State.Canceled;
-
             CancelWork();
         }
 
         private void OnProduceCompleted()
         {
-            _isProduceCompleted = true;
+            ProducerState.IsCompleted = true;
 
-            for (int i = 0; i < _processorsStates.Count; i++)
+            for (int i = 0; i < ProcessorStates.Count; i++)
             {
-                var processor = _processorsStates[i].Processor;
+                var processor = ProcessorStates[i].Processor;
                 processor.Finish();
             }
         }
 
         private void OnProcessCompleted(ITaskProcessor<TTaskInfo> processor)
         {
-            if (!_isProduceCompleted)
+            if (!ProducerState.IsCompleted)
                 throw new InvalidOperationException("Processor can not complete operation before Producer.");
 
-            var state = _processorsStates.First(st => st.Processor == processor);
+            var state = ProcessorStates.First(st => st.Processor == processor);
 
             _event.WaitOne();
 
             state.IsCompleted = true;
-            if (_isProduceCompleted && _processorsStates.All(st => st.IsCompleted))
-            {
-                _state = State.Completed;
+            if (ProcessorStates.All(st => st.IsCompleted))
                 Completed();
-            }
 
             _event.Set();
         }
 
         private void OnFailed(Exception ex)
         {
-            _state = State.Failed;
-            
             CancelWork();
             Failed(ex);
         }
 
         private void CancelWork()
         {
-            _producer.Cancel();
+            if (!IsStarted)
+                return;
 
-            for (int i = 0; i < _processorsStates.Count; i++)
+            ProducerState.Producer.Cancel();
+
+            for (int i = 0; i < ProcessorStates.Count; i++)
             {
-                var processor = _processorsStates[i].Processor;
+                var processor = ProcessorStates[i].Processor;
                 processor.Cancel();
             }
         }

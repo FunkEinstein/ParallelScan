@@ -22,7 +22,7 @@ namespace ParallelScan.TaskProcessors
             get { return _isProviderComplete && _tasks.Count == 0; }
         }
 
-        public abstract event EventHandler<FileTaskInfo> Processed;
+        public abstract event Action<FileTaskInfo> Processed;
         public event Action<Exception> Failed = delegate { };
         public event Action Completed = delegate { };
 
