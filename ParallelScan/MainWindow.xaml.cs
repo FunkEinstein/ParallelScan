@@ -91,7 +91,7 @@ namespace ParallelScan
         {
             Cancel();
 
-            MessageBox.Show(ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
 
             Dispatcher.Invoke(Clear);
         }
@@ -110,8 +110,8 @@ namespace ParallelScan
             _coordinator = null;
 
             MessageBox.Show(
-                string.Format("Сканирование окончено. Затраченно {0} сек.", time.ToString(CultureInfo.InvariantCulture)),
-                "Информация",
+                string.Format("Scanning is complete. Elapsed {0} s.", time.ToString(CultureInfo.InvariantCulture)),
+                "Info",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
