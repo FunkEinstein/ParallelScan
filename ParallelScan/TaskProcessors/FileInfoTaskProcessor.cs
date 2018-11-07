@@ -6,14 +6,18 @@ using ParallelScan.Info;
 
 namespace ParallelScan.TaskProcessors
 {
-    abstract class FileInfoTaskProcessor : ITaskProcessor<FileTaskInfo>
+    abstract class FileInfoTaskProcessor
     {
-        private readonly object _tasksSync = new object();
-        private readonly Queue<FileTaskInfo> _tasks;
+        public abstract event Action<TaskInfo> Processed;
+        public event Action<Exception> Failed = delegate { };
+        public event Action Completed = delegate { };
+
+        private readonly Queue<TaskInfo> _tasks;
 
         private Task _task;
         private readonly CancellationTokenSource _cts;
         private readonly SemaphoreSlim _semaphore;
+        private SpinLock _spinLock; // can't be readonly
 
         private bool _isProviderComplete;
 
@@ -22,14 +26,11 @@ namespace ParallelScan.TaskProcessors
             get { return _isProviderComplete && _tasks.Count == 0; }
         }
 
-        public abstract event Action<FileTaskInfo> Processed;
-        public event Action<Exception> Failed = delegate { };
-        public event Action Completed = delegate { };
-
         protected FileInfoTaskProcessor()
         {
-            _tasks = new Queue<FileTaskInfo>();
+            _tasks = new Queue<TaskInfo>();
             _semaphore = new SemaphoreSlim(0);
+            _spinLock = new SpinLock();
             _cts = new CancellationTokenSource();
 
             _isProviderComplete = false;
@@ -37,11 +38,12 @@ namespace ParallelScan.TaskProcessors
         
         #region Handlers
 
-        public void QueueTask(FileTaskInfo info)
+        public void QueueTask(TaskInfo info)
         {
-            Monitor.Enter(_tasksSync);
+            var lockTaken = false;
+            _spinLock.Enter(ref lockTaken);
             _tasks.Enqueue(info);
-            Monitor.Exit(_tasksSync);
+            _spinLock.Exit();
 
             _semaphore.Release();
 
@@ -67,6 +69,8 @@ namespace ParallelScan.TaskProcessors
 
         protected async void ProcessTask()
         {
+            var lockTaken = false;
+
             try
             {
                 while (!IsSuccessfullyCompleted)
@@ -78,9 +82,10 @@ namespace ParallelScan.TaskProcessors
                     if (IsSuccessfullyCompleted)
                         break;
 
-                    Monitor.Enter(_tasksSync);
+                    _spinLock.Enter(ref lockTaken);
                     var info = _tasks.Dequeue();
-                    Monitor.Exit(_tasksSync);
+                    _spinLock.Exit();
+                    lockTaken = false;
 
                     ProcessInfo(info);
                 }
@@ -94,14 +99,14 @@ namespace ParallelScan.TaskProcessors
             }
             finally
             {
-                if (Monitor.IsEntered(_tasks))
-                    Monitor.Exit(_tasks);
+                if (lockTaken)
+                    _spinLock.Exit();
 
                 FinalizeProcessing();
             }
         }
 
-        protected abstract void ProcessInfo(FileTaskInfo info);
+        protected abstract void ProcessInfo(TaskInfo info);
 
         protected virtual void FinalizeProcessing()
         { }

@@ -1,155 +1,64 @@
-﻿using System.Globalization;
-using System.Text.RegularExpressions;
-using ParallelScan.Info;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
-namespace ParallelScan.TaskProducers
+namespace ParallelScan.Info
 {
-    class FileInfoTaskProducer : ITaskProducer<FileTaskInfo>
+    class TaskInfoBuilder
     {
-        private Task _task;
-        private readonly CancellationTokenSource _cts;
-
         private readonly WindowsPrincipal _currentUser;
 
-        private readonly string _baseDirectoryPath;
-
-        public event Action<FileTaskInfo> Produced = delegate { };
-        public event Action<Exception> Failed = delegate { };
-        public event Action Completed = delegate { };
-
-        public FileInfoTaskProducer(string baseDirectoryPath)
+        public TaskInfoBuilder()
         {
             var identity = WindowsIdentity.GetCurrent();
             _currentUser = new WindowsPrincipal(identity);
 
-            _cts = new CancellationTokenSource();
-            _baseDirectoryPath = baseDirectoryPath;
         }
 
-        public void Start()
+        public TaskInfo Build(FileInfo fileInfo)
         {
-            if (_task == null)
-                _task = Task.Factory.StartNew(Produce, _cts.Token);
-        }
+            var attributes = GetFilesAttributes(fileInfo).ToList();
 
-        public void Cancel()
-        {
-            _cts.Cancel();
-        }
-
-        #region Produce
-
-        private void Produce()
-        {
-            try
-            {
-                GetStructure(_baseDirectoryPath);
-
-                Completed();
-            }
-            catch (OperationCanceledException) { } // Swallow this
-            catch (Exception ex)
-            {
-                Failed(ex);
-            }
-        }
-
-        public void GetStructure(string path)
-        {
-            var info = new DirectoryInfo(path);
-
-            Produced(GetDirectoriesInfo(info));
-
-            GetStructure(info);
-        }
-
-        private long GetStructure(DirectoryInfo info)
-        {
-            _cts.Token.ThrowIfCancellationRequested();
-
-            var size = 0L;
-
-            DirectoryInfo[] dirs;
-            try
-            {
-                dirs = info.GetDirectories();
-            }
-            catch (UnauthorizedAccessException)
-            {
-                var taskInfo = new FileTaskInfo
-                {
-                    Attributes = new List<InfoAttribute>(),
-                    IsDirectory = true,
-                    Name = info.Name,
-                    TaskType = TaskType.Update
-                };
-
-                Produced(taskInfo);
-
-                return size;
-            }
-
-            for (int i = 0; i < dirs.Count(); i++)
-            {
-                Produced(GetDirectoriesInfo(dirs[i]));
-
-                size += GetStructure(dirs[i]);
-            }
-
-            var files = info.GetFiles();
-            for (int i = 0; i < files.Count(); i++)
-            {
-                Produced(GetFileInfo(files[i]));
-
-                size += files[i].Length;
-            }
-
-            var updateSizeInfo = new FileTaskInfo
-            {
-                Attributes = new List<InfoAttribute> { new InfoAttribute("Size", size.ToString(CultureInfo.InvariantCulture)) },
-                Name = info.Name,
-                IsDirectory = true,
-                TaskType = TaskType.Update
-            };
-            Produced(updateSizeInfo);
-
-            return size;
-        }
-
-        private FileTaskInfo GetDirectoriesInfo(DirectoryInfo dir)
-        {
-            var attributes = GetDirectoryAttributes(dir).ToList();
-
-            return new FileTaskInfo
+            return new TaskInfo
             {
                 Attributes = attributes,
-                Name = dir.Name,
-                IsDirectory = true,
-                TaskType = TaskType.Add
-            };
-        }
-
-        private FileTaskInfo GetFileInfo(FileInfo file)
-        {
-            var attributes = GetFilesAttributes(file).ToList();
-
-            return new FileTaskInfo
-            {
-                Attributes = attributes,
-                Name = file.Name,
+                Name = fileInfo.Name,
                 IsDirectory = false,
                 TaskType = TaskType.Add
             };
         }
+
+        public TaskInfo Build(DirectoryInfo directoryInfo)
+        {
+            var attributes = GetDirectoryAttributes(directoryInfo).ToList();
+
+            return new TaskInfo
+            {
+                Attributes = attributes,
+                Name = directoryInfo.Name,
+                IsDirectory = true,
+                TaskType = TaskType.Add
+            };
+        }
+
+        public TaskInfo Build(DirectoryInfo directoryInfo, long size)
+        {
+            return new TaskInfo
+            {
+                Attributes = new List<InfoAttribute> { new InfoAttribute("Size", size.ToString(CultureInfo.InvariantCulture)) },
+                Name = directoryInfo.Name,
+                IsDirectory = true,
+                TaskType = TaskType.Update
+            };
+        }
+        
+        #region Helpers
 
         private IEnumerable<InfoAttribute> GetDirectoryAttributes(DirectoryInfo dir)
         {
@@ -177,8 +86,8 @@ namespace ParallelScan.TaskProducers
             var ownerIdentity = security.GetOwner(typeof(SecurityIdentifier));
             try
             {
-                var ownerNT = ownerIdentity.Translate(typeof(NTAccount));
-                attributes.Add(new InfoAttribute("Owner", ownerNT.Value));
+                var ownerNt = ownerIdentity.Translate(typeof(NTAccount));
+                attributes.Add(new InfoAttribute("Owner", ownerNt.Value));
             }
             catch (IdentityNotMappedException)
             {
@@ -264,15 +173,15 @@ namespace ParallelScan.TaskProducers
                 return attributes;
             }
 
-            var ownerSI = security.GetOwner(typeof(SecurityIdentifier));
+            var ownerSi = security.GetOwner(typeof(SecurityIdentifier));
             try
             {
-                var ownerNT = ownerSI.Translate(typeof(NTAccount));
-                attributes.Add(new InfoAttribute("Owner", ownerNT.Value));
+                var ownerNt = ownerSi.Translate(typeof(NTAccount));
+                attributes.Add(new InfoAttribute("Owner", ownerNt.Value));
             }
             catch (IdentityNotMappedException)
             {
-                attributes.Add(new InfoAttribute("Owner", ownerSI.Value));
+                attributes.Add(new InfoAttribute("Owner", ownerSi.Value));
             }
 
             var rules = security.GetAccessRules(true, true, typeof(NTAccount));

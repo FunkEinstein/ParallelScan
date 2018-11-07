@@ -10,13 +10,13 @@ namespace ParallelScan.TaskProcessors
 {
     class TreeWriterInfoTaskProcessor : FileInfoTaskProcessor
     {
+        public override event Action<TaskInfo> Processed = delegate { };
+
         private readonly Stack<XmlNode> _nodes;
         private XmlNode _currentNode;
 
         private readonly Dispatcher _dispatcher;
         private readonly XmlDocument _document;
-
-        public override event Action<FileTaskInfo> Processed = delegate { };
 
         public TreeWriterInfoTaskProcessor(Dispatcher dispatcher, XmlDocument document)
         {
@@ -26,9 +26,9 @@ namespace ParallelScan.TaskProcessors
             _nodes = new Stack<XmlNode>();
         }
 
-        #region Processors
+        #region Process
 
-        protected override void ProcessInfo(FileTaskInfo info)
+        protected override void ProcessInfo(TaskInfo info)
         {
             Monitor.Enter(_document);
             _dispatcher.Invoke(
@@ -60,7 +60,7 @@ namespace ParallelScan.TaskProcessors
         
         #region Helpers
 
-        private void CreateElement(FileTaskInfo info)
+        private void CreateElement(TaskInfo info)
         {
             var nodeType = info.IsDirectory ? "dir" : "file";
 
@@ -87,7 +87,7 @@ namespace ParallelScan.TaskProcessors
             Processed(info);
         }
 
-        private void EditElement(FileTaskInfo info)
+        private void EditElement(TaskInfo info)
         {
             if (_currentNode.Attributes.Count == 1)
             {
@@ -104,8 +104,7 @@ namespace ParallelScan.TaskProcessors
             }
 
             var size = info.Attributes.FirstOrDefault(at => at.Name == "Size");
-
-            if (size != null)
+            if (!size.IsDefault())
             {
                 var attr = _document.CreateAttribute(size.Name);
                 attr.InnerText = size.Value;

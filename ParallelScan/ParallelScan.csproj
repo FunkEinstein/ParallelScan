@@ -55,16 +55,14 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Info\InfoAttribute.cs" />
-    <Compile Include="Info\FileTaskInfo.cs" />
-    <Compile Include="TaskCoordinator\ITaskEvents.cs" />
+    <Compile Include="Info\TaskInfo.cs" />
+    <Compile Include="Info\TaskInfoBuilder.cs" />
+    <Compile Include="Info\TaskType.cs" />
     <Compile Include="TaskCoordinator\ScanCoordinator.cs" />
-    <Compile Include="TaskCoordinator\TaskCoordinator.cs" />
     <Compile Include="TaskProcessors\FileInfoTaskProcessor.cs" />
     <Compile Include="TaskProcessors\TreeWriterInfoTaskProcessor.cs" />
     <Compile Include="TaskProcessors\FileWriterTaskProcessor.cs" />
-    <Compile Include="TaskProcessors\ITaskProcessor.cs" />
-    <Compile Include="TaskProducers\FileInfoTaskProducer.cs" />
-    <Compile Include="TaskProducers\ITaskProducer.cs" />
+    <Compile Include="InfoCollectors\InfoCollector.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

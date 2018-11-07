@@ -2,13 +2,7 @@
 
 namespace ParallelScan.Info
 {
-    public enum TaskType : byte
-    {
-        Add = 0,
-        Update
-    }
-
-    class FileTaskInfo
+    struct TaskInfo
     {
         public List<InfoAttribute> Attributes { get; set; }
         public string Name { get; set; }

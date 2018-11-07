@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Globalization;
-using System.Threading;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Forms;
@@ -13,17 +12,13 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace ParallelScan
 {
-    /// <summary>
-    /// Логика взаимодействия для MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : Window
     {
         private readonly Stopwatch _watch;
-        private readonly AutoResetEvent _event;
 
         private int _scannedItemCount;
         private int _wroteToFileCount;
-        private int _wroteToXmlCount;
+        private int _wroteToTreeCount;
 
         private ScanCoordinator _coordinator;
 
@@ -32,10 +27,9 @@ namespace ParallelScan
             InitializeComponent();
 
             _scannedItemCount = 0;
-            _wroteToXmlCount = 0;
+            _wroteToTreeCount = 0;
             _wroteToFileCount = 0;
 
-            _event = new AutoResetEvent(true);
             _watch = new Stopwatch();
         }
 
@@ -45,52 +39,7 @@ namespace ParallelScan
         {
             Clear();
 
-            var folderToScanDialog = new FolderBrowserDialog();
-            var fileToSave = new SaveFileDialog();
-
-            fileToSave.CheckPathExists = true;
-            fileToSave.AddExtension = true;
-            fileToSave.DefaultExt = "xml";
-            fileToSave.Filter = @"XML files (*.xml)|*.xml";
-            fileToSave.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-
-            if (folderToScanDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK &&
-                fileToSave.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            {
-                var savePath = fileToSave.FileName;
-                var selectedPath = folderToScanDialog.SelectedPath;
-                var info = new DirectoryInfo(selectedPath);
-
-                var dataProvider = FindResource("xmlDataProvider") as XmlDataProvider;
-
-                if (dataProvider == null)
-                    throw new ResourceReferenceKeyNotFoundException();
-
-                var document = new XmlDocument();
-                var node = document.CreateElement("dir");
-                var attr = document.CreateAttribute("Name");
-                attr.InnerText = info.Name;
-                node.Attributes.Append(attr);
-
-                document.AppendChild(node);
-
-                dataProvider.Document = document;
-
-                _coordinator = new ScanCoordinator(selectedPath, savePath, dataProvider.Document, Dispatcher);
-
-                _coordinator.Failed += OnError;
-                _coordinator.Completed += OnComplited;
-
-                _coordinator.ItemScanned += OnItemScanned;
-                _coordinator.ItemWroteToFile += OnItemWroteToFile;
-                _coordinator.ItemWroteToXml += OnItemWroteToXml;
-
-                _watch.Start();
-                _coordinator.Start();
-
-                StartMenuItem.IsEnabled = false;
-                CancelMenuItem.IsEnabled = true;
-            }
+            OpenFolderSelectionDialog();
         }
 
         private void OnCancelClick(object sender, RoutedEventArgs e)
@@ -132,10 +81,10 @@ namespace ParallelScan
             Dispatcher.Invoke(() => WriteCount.Text = _wroteToFileCount.ToString(CultureInfo.InvariantCulture));
         }
 
-        private void OnItemWroteToXml()
+        private void OnItemWroteToTree()
         {
-            _wroteToXmlCount++;
-            Dispatcher.Invoke(() => SetCount.Text = _wroteToXmlCount.ToString(CultureInfo.InvariantCulture));
+            _wroteToTreeCount++;
+            Dispatcher.Invoke(() => SetCount.Text = _wroteToTreeCount.ToString(CultureInfo.InvariantCulture));
         }
 
         private void OnError(Exception ex)
@@ -158,6 +107,8 @@ namespace ParallelScan
             _watch.Stop();
             var time = Math.Round(_watch.Elapsed.TotalSeconds, 1);
 
+            _coordinator = null;
+
             MessageBox.Show(
                 string.Format("Сканирование окончено. Затраченно {0} сек.", time.ToString(CultureInfo.InvariantCulture)),
                 "Информация",
@@ -168,6 +119,36 @@ namespace ParallelScan
         #endregion
 
         #region Helpers
+
+        private void OpenFolderSelectionDialog()
+        {
+            var folderToScanDialog = new FolderBrowserDialog();
+            var fileToSave = new SaveFileDialog();
+
+            fileToSave.CheckPathExists = true;
+            fileToSave.AddExtension = true;
+            fileToSave.DefaultExt = "xml";
+            fileToSave.Filter = @"XML files (*.xml)|*.xml";
+            fileToSave.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+            if (folderToScanDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK &&
+                fileToSave.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                Start(fileToSave.FileName, folderToScanDialog.SelectedPath);
+        }
+
+        private void Start(string saveResultPath, string selectedDirectoryPath)
+        {
+            var info = new DirectoryInfo(selectedDirectoryPath);
+
+            var dataProvider = ConfigureXmlDataProvider(info.Name);
+            var coordinator = ConfigureScan(selectedDirectoryPath, saveResultPath, dataProvider);
+
+            _watch.Start();
+            coordinator.Start();
+
+            StartMenuItem.IsEnabled = false;
+            CancelMenuItem.IsEnabled = true;
+        }
 
         private void Cancel()
         {
@@ -185,14 +166,45 @@ namespace ParallelScan
 
             _scannedItemCount = 0;
             GetCount.Text = _scannedItemCount.ToString(CultureInfo.InvariantCulture);
-            _wroteToXmlCount = 0;
-            SetCount.Text = _wroteToXmlCount.ToString(CultureInfo.InvariantCulture);
+            _wroteToTreeCount = 0;
+            SetCount.Text = _wroteToTreeCount.ToString(CultureInfo.InvariantCulture);
             _wroteToFileCount = 0;
             WriteCount.Text = _wroteToFileCount.ToString(CultureInfo.InvariantCulture);
 
-            _event.Set();
-
             _watch.Reset();
+        }
+
+        private XmlDataProvider ConfigureXmlDataProvider(string directoryName)
+        {
+            var dataProvider = FindResource("xmlDataProvider") as XmlDataProvider;
+            if (dataProvider == null)
+                throw new ResourceReferenceKeyNotFoundException();
+
+            var document = new XmlDocument();
+            var node = document.CreateElement("dir");
+            var attr = document.CreateAttribute("Name");
+            attr.InnerText = directoryName;
+            node.Attributes.Append(attr);
+
+            document.AppendChild(node);
+
+            dataProvider.Document = document;
+
+            return dataProvider;
+        }
+
+        private ScanCoordinator ConfigureScan(string selectedDirectoryPath, string saveResultPath, XmlDataProvider dataProvider)
+        {
+            _coordinator = new ScanCoordinator(selectedDirectoryPath, saveResultPath, dataProvider.Document, Dispatcher);
+
+            _coordinator.Failed += OnError;
+            _coordinator.Completed += OnComplited;
+
+            _coordinator.ItemScanned += OnItemScanned;
+            _coordinator.ItemWroteToFile += OnItemWroteToFile;
+            _coordinator.ItemWroteToTree += OnItemWroteToTree;
+
+            return _coordinator;
         }
 
         #endregion

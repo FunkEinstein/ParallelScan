@@ -7,10 +7,12 @@ using System.Text;
 
 namespace ParallelScan.TaskProcessors
 {
-    class FileWriterTaskProcessor: FileInfoTaskProcessor, IDisposable
+    internal class FileWriterTaskProcessor : FileInfoTaskProcessor, IDisposable
     {
+        public override event Action<TaskInfo> Processed = delegate { };
+
         private const char Tab = '\t';
-        private const int Size = 12;
+        private const int DirectorySizeAttributeDimension = 19; // max number of digits in long
 
         private readonly Stack<long> _offset;
 
@@ -19,9 +21,7 @@ namespace ParallelScan.TaskProcessors
 
         private StreamWriter _writer;
 
-        public override event Action<FileTaskInfo> Processed = delegate { };
-
-        public FileWriterTaskProcessor(string path) 
+        public FileWriterTaskProcessor(string path)
         {
             _offset = new Stack<long>();
             _filePath = path;
@@ -29,9 +29,9 @@ namespace ParallelScan.TaskProcessors
             _writer = new StreamWriter(_file);
         }
 
-        #region Processors
+        #region Process
 
-        protected override void ProcessInfo(FileTaskInfo info)
+        protected override void ProcessInfo(TaskInfo info)
         {
             if (info.TaskType == TaskType.Update)
                 UpdateInfo(info);
@@ -49,13 +49,14 @@ namespace ParallelScan.TaskProcessors
 
         #endregion
 
-        #region IDisposable
+        #region Disposable
 
         public void Dispose()
         {
-            _writer.Flush();
-            _writer.Dispose();
+            if (IsSuccessfullyCompleted)
+                _writer.Flush();
 
+            _writer.Dispose();
             _file.Dispose();
         }
 
@@ -63,7 +64,7 @@ namespace ParallelScan.TaskProcessors
 
         #region Helpers
 
-        private void WriteInfo(FileTaskInfo info)
+        private void WriteInfo(TaskInfo info)
         {
             var builder = new StringBuilder(256);
 
@@ -89,7 +90,7 @@ namespace ParallelScan.TaskProcessors
                 _offset.Push(_writer.BaseStream.Position);
                 builder.Clear();
 
-                builder.AppendFormat("{0}\"", new string('0', Size));
+                builder.AppendFormat("{0}\"", new string('0', DirectorySizeAttributeDimension));
 
                 builder.Append(" >");
             }
@@ -101,7 +102,7 @@ namespace ParallelScan.TaskProcessors
             Processed(info);
         }
 
-        private void UpdateInfo(FileTaskInfo info)
+        private void UpdateInfo(TaskInfo info)
         {
             var currentOffset = _offset.Pop();
 
@@ -109,10 +110,10 @@ namespace ParallelScan.TaskProcessors
             _writer.Flush();
 
             var size = info.Attributes.FirstOrDefault(at => at.Name == "Size");
-            if (size == null)
+            if (size.IsDefault())
                 return;
 
-            var offset = currentOffset + Size - size.Value.Length;
+            var offset = currentOffset + DirectorySizeAttributeDimension - size.Value.Length;
             var currentPosition = _writer.BaseStream.Position;
 
             _file.Seek(offset, SeekOrigin.Begin);

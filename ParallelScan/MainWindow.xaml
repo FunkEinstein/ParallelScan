@@ -61,11 +61,11 @@
             <RowDefinition Height="25"/>
         </Grid.RowDefinitions>
         <Menu Grid.Row="0" VerticalAlignment="Top">
-            <MenuItem Header="Сканирование">
-                <MenuItem Name="StartMenuItem" Header="Старт" Click="OnStartClick" />
-                <MenuItem Name="CancelMenuItem" Header="Отмена" IsEnabled="False" Click="OnCancelClick"/>
+            <MenuItem Header="Scan">
+                <MenuItem Name="StartMenuItem" Header="Start" Click="OnStartClick" />
+                <MenuItem Name="CancelMenuItem" Header="Stop" IsEnabled="False" Click="OnCancelClick"/>
                 <Separator/>
-                <MenuItem Name="ExitMenuItem" Header="Выход" Click="OnExitClick" />
+                <MenuItem Name="ExitMenuItem" Header="Exit" Click="OnExitClick" />
             </MenuItem>
         </Menu>
         <TreeView Name="TreeView"
@@ -92,21 +92,21 @@
             </StatusBar.ItemsPanel>
             <StatusBarItem>
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Считано"/>
+                    <TextBlock Text="Scanned"/>
                     <TextBlock Name="GetCount" Margin="10,0" />
                 </StackPanel>
             </StatusBarItem>
             <Separator Grid.Column="1" />
             <StatusBarItem Grid.Column="2">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Выведено в дерево"/>
+                    <TextBlock Text="Wrote in tree view"/>
                     <TextBlock Name="SetCount" Margin="10,0"/>
                 </StackPanel>
             </StatusBarItem>
             <Separator Grid.Column="3" />
             <StatusBarItem Grid.Column="4">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Выгруженно в файл"/>
+                    <TextBlock Text="Wrote in file"/>
                     <TextBlock Name="WriteCount" Margin="10,0"/>
                 </StackPanel>
             </StatusBarItem>

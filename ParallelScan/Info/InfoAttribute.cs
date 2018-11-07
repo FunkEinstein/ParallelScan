@@ -1,6 +1,6 @@
 ﻿namespace ParallelScan.Info
 {
-    class InfoAttribute
+    struct InfoAttribute
     {
         public string Name { get; set; }
         public string Value { get; set; }
@@ -9,6 +9,11 @@
         {
             Name = name;
             Value = value;
+        }
+
+        public bool IsDefault()
+        {
+            return Name == null && Value == null;
         }
     }
 }
